@@ -1,0 +1,14 @@
+target
+.git
+.idea
+*.iml
+
+.env
+.env.*
+!.env.example
+
+src/main/resources/application-local.yml
+src/main/resources/application-local.yaml
+
+node_modules
+*.log

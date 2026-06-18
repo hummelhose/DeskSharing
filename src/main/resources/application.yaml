@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: DeskSharing
+
+  profiles:
+    active: local
+
+  sql:
+    init:
+      mode: never
+
+server:
+  port: 8080

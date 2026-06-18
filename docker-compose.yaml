@@ -1,0 +1,50 @@
+services:
+  desksharing-db:
+    image: postgres:16
+    container_name: desksharing-db
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-desksharing}
+      POSTGRES_USER: ${POSTGRES_USER:-desksharing_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-desksharing_password}
+
+    volumes:
+      - desksharing_postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-desksharing_user} -d ${POSTGRES_DB:-desksharing}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  desksharing-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    image: desksharing:latest
+    container_name: desksharing-app
+    restart: unless-stopped
+
+    depends_on:
+      desksharing-db:
+        condition: service_healthy
+
+    ports:
+      - "${APP_PORT:-8080}:8080"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+
+      DB_URL: jdbc:postgresql://desksharing-db:5432/${POSTGRES_DB:-desksharing}
+      DB_USERNAME: ${POSTGRES_USER:-desksharing_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-desksharing_password}
+      JPA_DDL_AUTO: ${JPA_DDL_AUTO:-update}
+
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET}
+      MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID}
+
+volumes:
+  desksharing_postgres_data:
