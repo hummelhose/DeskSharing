@@ -40,7 +40,6 @@ services:
       DB_URL: jdbc:postgresql://desksharing-db:5432/${POSTGRES_DB:-desksharing}
       DB_USERNAME: ${POSTGRES_USER:-desksharing_user}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-desksharing_password}
-      JPA_DDL_AUTO: ${JPA_DDL_AUTO:-update}
 
       MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID}
       MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET}

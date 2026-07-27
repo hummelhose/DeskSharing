@@ -36,8 +36,24 @@ APP_PORT=8080
 POSTGRES_DB=desksharing
 POSTGRES_USER=desksharing_user
 POSTGRES_PASSWORD=CHANGE_ME
+---
 
-JPA_DDL_AUTO=update
+## Database migrations
+
+DeskSharing uses Flyway to manage the PostgreSQL database schema.
+
+Database migrations are located in:
+
+src/main/resources/db/migration
+
+Flyway automatically applies pending migrations when the application starts.
+
+Hibernate only validates the database schema and does not create or modify tables automatically.
+
+Do not edit migrations that have already been applied. Schema changes must be added as new versioned migration files, for example:
+
+V2__example_change.sql
+V3__another_change.sql
 
 MICROSOFT_CLIENT_ID=CHANGE_ME
 MICROSOFT_CLIENT_SECRET=CHANGE_ME
