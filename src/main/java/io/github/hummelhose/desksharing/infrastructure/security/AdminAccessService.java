@@ -15,9 +15,11 @@ public class AdminAccessService {
 
     public boolean isCurrentUserAdmin() {
         try {
-            AppUser currentUser = currentUserService.getOrCreateCurrentUser();
+            AppUser currentUser =
+                    currentUserService.getOrCreateCurrentUser();
+
             return currentUser.getRole() == AppRole.ADMIN;
-        } catch (IllegalStateException exception) {
+        } catch (CurrentUserResolutionException exception) {
             return false;
         }
     }

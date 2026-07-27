@@ -16,6 +16,15 @@ import java.util.Map;
 @Service
 public class CurrentUserService {
 
+    private static final String NO_AUTHENTICATED_USER_MESSAGE =
+            "Kein angemeldeter Benutzer gefunden.";
+
+    private static final String INVALID_MICROSOFT_IDENTITY_MESSAGE =
+            "Der angemeldete Microsoft-Benutzer enthält keine verwertbare Benutzerkennung.";
+
+    private static final String DEFAULT_MICROSOFT_DISPLAY_NAME =
+            "Microsoft Benutzer";
+
     private final UserSyncService userSyncService;
 
     public CurrentUserService(UserSyncService userSyncService) {
@@ -23,13 +32,7 @@ public class CurrentUserService {
     }
 
     public AppUser getOrCreateCurrentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-
-        if (authentication == null
-                || !authentication.isAuthenticated()
-                || authentication instanceof AnonymousAuthenticationToken) {
-            throw new IllegalStateException("Kein angemeldeter Benutzer gefunden.");
-        }
+        Authentication authentication = getRequiredAuthentication();
 
         if (authentication instanceof OAuth2AuthenticationToken oauth2AuthenticationToken) {
             return getOrCreateMicrosoftUser(oauth2AuthenticationToken);
@@ -38,27 +41,63 @@ public class CurrentUserService {
         return getOrCreateLocalUser(authentication);
     }
 
-    private AppUser getOrCreateMicrosoftUser(OAuth2AuthenticationToken authentication) {
+    private Authentication getRequiredAuthentication() {
+        Authentication authentication =
+                SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken) {
+
+            throw new CurrentUserResolutionException(
+                    NO_AUTHENTICATED_USER_MESSAGE
+            );
+        }
+
+        return authentication;
+    }
+
+    private AppUser getOrCreateMicrosoftUser(
+            OAuth2AuthenticationToken authentication
+    ) {
         OAuth2User principal = authentication.getPrincipal();
         Map<String, Object> attributes = principal.getAttributes();
 
-        String entraOid = getAttributeAsString(attributes, "oid");
+        String entraOid = getFirstNonBlankAttribute(
+                attributes,
+                "oid",
+                "sub"
+        );
+
+        String email = getFirstNonBlankAttribute(
+                attributes,
+                "email",
+                "preferred_username",
+                "upn"
+        );
+
+        /*
+         * Mindestens eine stabile Kennung muss vorhanden sein.
+         * Andernfalls könnte kein Benutzer zuverlässig synchronisiert werden.
+         */
+        if (isBlank(entraOid) && isBlank(email)) {
+            throw new CurrentUserResolutionException(
+                    INVALID_MICROSOFT_IDENTITY_MESSAGE
+            );
+        }
 
         if (isBlank(entraOid)) {
-            entraOid = getAttributeAsString(attributes, "sub");
-        }
-
-        String email = getAttributeAsString(attributes, "email");
-
-        if (isBlank(email)) {
-            email = getAttributeAsString(attributes, "preferred_username");
+            entraOid = "microsoft-" + email;
         }
 
         if (isBlank(email)) {
-            email = getAttributeAsString(attributes, "upn");
+            email = entraOid + "@microsoft.local";
         }
 
-        String displayName = getAttributeAsString(attributes, "name");
+        String displayName = getFirstNonBlankAttribute(
+                attributes,
+                "name"
+        );
 
         if (isBlank(displayName) && principal instanceof OidcUser oidcUser) {
             displayName = oidcUser.getFullName();
@@ -69,27 +108,25 @@ public class CurrentUserService {
         }
 
         if (isBlank(displayName)) {
-            displayName = "Microsoft Benutzer";
+            displayName = DEFAULT_MICROSOFT_DISPLAY_NAME;
         }
 
-        if (isBlank(email)) {
-            email = entraOid + "@microsoft.local";
-        }
-
-        if (isBlank(entraOid)) {
-            entraOid = "microsoft-" + email;
-        }
-
-        AppRole role = AppRole.USER;
-
-        return userSyncService.syncUser(entraOid, email, displayName, role);
+        return userSyncService.syncUser(
+                entraOid,
+                email,
+                displayName,
+                AppRole.USER
+        );
     }
 
     private AppUser getOrCreateLocalUser(Authentication authentication) {
         String username = authentication.getName();
 
-        AppRole role = authentication.getAuthorities().stream()
-                .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"))
+        AppRole role = authentication.getAuthorities()
+                .stream()
+                .anyMatch(authority ->
+                        "ROLE_ADMIN".equals(authority.getAuthority())
+                )
                 ? AppRole.ADMIN
                 : AppRole.USER;
 
@@ -97,17 +134,33 @@ public class CurrentUserService {
         String email = username + "@local.dev";
         String displayName = username;
 
-        return userSyncService.syncUser(entraOid, email, displayName, role);
+        return userSyncService.syncUser(
+                entraOid,
+                email,
+                displayName,
+                role
+        );
     }
 
-    private String getAttributeAsString(Map<String, Object> attributes, String key) {
-        Object value = attributes.get(key);
+    private String getFirstNonBlankAttribute(
+            Map<String, Object> attributes,
+            String... keys
+    ) {
+        for (String key : keys) {
+            Object value = attributes.get(key);
 
-        if (value == null) {
-            return null;
+            if (value == null) {
+                continue;
+            }
+
+            String stringValue = value.toString();
+
+            if (!stringValue.isBlank()) {
+                return stringValue;
+            }
         }
 
-        return value.toString();
+        return null;
     }
 
     private boolean isBlank(String value) {

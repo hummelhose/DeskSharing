@@ -14,15 +14,18 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class CurrentUserServiceTest {
@@ -34,6 +37,7 @@ class CurrentUserServiceTest {
     void setUp() {
         userSyncService = mock(UserSyncService.class);
         currentUserService = new CurrentUserService(userSyncService);
+
         SecurityContextHolder.clearContext();
     }
 
@@ -46,13 +50,17 @@ class CurrentUserServiceTest {
     void getOrCreateCurrentUser_shouldSyncLocalAdminUser() {
         AppUser syncedUser = mock(AppUser.class);
 
-        Authentication authentication = new UsernamePasswordAuthenticationToken(
-                "admin",
-                "admin",
-                List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
-        );
+        Authentication authentication =
+                new UsernamePasswordAuthenticationToken(
+                        "admin",
+                        "admin",
+                        List.of(
+                                new SimpleGrantedAuthority("ROLE_ADMIN")
+                        )
+                );
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
+        SecurityContextHolder.getContext()
+                .setAuthentication(authentication);
 
         when(userSyncService.syncUser(
                 "local-admin",
@@ -61,7 +69,8 @@ class CurrentUserServiceTest {
                 AppRole.ADMIN
         )).thenReturn(syncedUser);
 
-        AppUser result = currentUserService.getOrCreateCurrentUser();
+        AppUser result =
+                currentUserService.getOrCreateCurrentUser();
 
         assertSame(syncedUser, result);
 
@@ -77,13 +86,17 @@ class CurrentUserServiceTest {
     void getOrCreateCurrentUser_shouldSyncLocalNormalUser() {
         AppUser syncedUser = mock(AppUser.class);
 
-        Authentication authentication = new UsernamePasswordAuthenticationToken(
-                "user",
-                "user",
-                List.of(new SimpleGrantedAuthority("ROLE_USER"))
-        );
+        Authentication authentication =
+                new UsernamePasswordAuthenticationToken(
+                        "user",
+                        "user",
+                        List.of(
+                                new SimpleGrantedAuthority("ROLE_USER")
+                        )
+                );
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
+        SecurityContextHolder.getContext()
+                .setAuthentication(authentication);
 
         when(userSyncService.syncUser(
                 "local-user",
@@ -92,7 +105,8 @@ class CurrentUserServiceTest {
                 AppRole.USER
         )).thenReturn(syncedUser);
 
-        AppUser result = currentUserService.getOrCreateCurrentUser();
+        AppUser result =
+                currentUserService.getOrCreateCurrentUser();
 
         assertSame(syncedUser, result);
 
@@ -111,47 +125,55 @@ class CurrentUserServiceTest {
         Map<String, Object> claims = Map.of(
                 "sub", "sub-123",
                 "oid", "entra-123",
-                "preferred_username", "marvin.jankowski@dk-tiefbau.de",
-                "email", "marvin.jankowski@dk-tiefbau.de",
-                "name", "Marvin Jankowski"
+                "preferred_username", "developer@example.com",
+                "email", "developer@example.com",
+                "name", "Example Developer"
         );
+
+        Instant issuedAt = Instant.parse("2026-01-01T10:00:00Z");
+        Instant expiresAt = issuedAt.plusSeconds(3600);
 
         OidcIdToken idToken = new OidcIdToken(
                 "token-value",
-                Instant.now(),
-                Instant.now().plusSeconds(3600),
+                issuedAt,
+                expiresAt,
                 claims
         );
 
         DefaultOidcUser oidcUser = new DefaultOidcUser(
-                List.of(new SimpleGrantedAuthority("ROLE_USER")),
+                List.of(
+                        new SimpleGrantedAuthority("ROLE_USER")
+                ),
                 idToken,
                 "oid"
         );
 
-        Authentication authentication = new OAuth2AuthenticationToken(
-                oidcUser,
-                oidcUser.getAuthorities(),
-                "azure"
-        );
+        Authentication authentication =
+                new OAuth2AuthenticationToken(
+                        oidcUser,
+                        oidcUser.getAuthorities(),
+                        "microsoft"
+                );
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
+        SecurityContextHolder.getContext()
+                .setAuthentication(authentication);
 
         when(userSyncService.syncUser(
                 "entra-123",
-                "marvin.jankowski@dk-tiefbau.de",
-                "Marvin Jankowski",
+                "developer@example.com",
+                "Example Developer",
                 AppRole.USER
         )).thenReturn(syncedUser);
 
-        AppUser result = currentUserService.getOrCreateCurrentUser();
+        AppUser result =
+                currentUserService.getOrCreateCurrentUser();
 
         assertSame(syncedUser, result);
 
         verify(userSyncService).syncUser(
                 "entra-123",
-                "marvin.jankowski@dk-tiefbau.de",
-                "Marvin Jankowski",
+                "developer@example.com",
+                "Example Developer",
                 AppRole.USER
         );
     }
@@ -160,25 +182,82 @@ class CurrentUserServiceTest {
     void getOrCreateCurrentUser_shouldThrowException_whenNoUserIsAuthenticated() {
         SecurityContextHolder.clearContext();
 
-        assertThrows(
-                IllegalStateException.class,
-                () -> currentUserService.getOrCreateCurrentUser()
+        CurrentUserResolutionException exception =
+                assertThrows(
+                        CurrentUserResolutionException.class,
+                        () -> currentUserService.getOrCreateCurrentUser()
+                );
+
+        assertEquals(
+                "Kein angemeldeter Benutzer gefunden.",
+                exception.getMessage()
         );
+
+        verifyNoInteractions(userSyncService);
     }
 
     @Test
     void getOrCreateCurrentUser_shouldThrowException_whenUserIsAnonymous() {
-        Authentication authentication = new AnonymousAuthenticationToken(
-                "anonymous-key",
-                "anonymousUser",
-                List.of(new SimpleGrantedAuthority("ROLE_ANONYMOUS"))
+        Authentication authentication =
+                new AnonymousAuthenticationToken(
+                        "anonymous-key",
+                        "anonymousUser",
+                        List.of(
+                                new SimpleGrantedAuthority("ROLE_ANONYMOUS")
+                        )
+                );
+
+        SecurityContextHolder.getContext()
+                .setAuthentication(authentication);
+
+        CurrentUserResolutionException exception =
+                assertThrows(
+                        CurrentUserResolutionException.class,
+                        () -> currentUserService.getOrCreateCurrentUser()
+                );
+
+        assertEquals(
+                "Kein angemeldeter Benutzer gefunden.",
+                exception.getMessage()
         );
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
+        verifyNoInteractions(userSyncService);
+    }
 
-        assertThrows(
-                IllegalStateException.class,
-                () -> currentUserService.getOrCreateCurrentUser()
+    @Test
+    void getOrCreateCurrentUser_shouldThrowException_whenMicrosoftIdentityIsMissing() {
+        DefaultOAuth2User oauth2User = new DefaultOAuth2User(
+                List.of(
+                        new SimpleGrantedAuthority("ROLE_USER")
+                ),
+                Map.of(
+                        "name",
+                        "Unknown User"
+                ),
+                "name"
         );
+
+        Authentication authentication =
+                new OAuth2AuthenticationToken(
+                        oauth2User,
+                        oauth2User.getAuthorities(),
+                        "microsoft"
+                );
+
+        SecurityContextHolder.getContext()
+                .setAuthentication(authentication);
+
+        CurrentUserResolutionException exception =
+                assertThrows(
+                        CurrentUserResolutionException.class,
+                        () -> currentUserService.getOrCreateCurrentUser()
+                );
+
+        assertEquals(
+                "Der angemeldete Microsoft-Benutzer enthält keine verwertbare Benutzerkennung.",
+                exception.getMessage()
+        );
+
+        verifyNoInteractions(userSyncService);
     }
 }
