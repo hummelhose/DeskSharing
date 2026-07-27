@@ -1,11 +1,8 @@
 package io.github.hummelhose.desksharing.application.service;
 
 import io.github.hummelhose.desksharing.domain.model.Office;
-import io.github.hummelhose.desksharing.domain.model.Resource;
 import io.github.hummelhose.desksharing.domain.model.Room;
 import io.github.hummelhose.desksharing.infrastructure.persistence.repository.OfficeRepository;
-import io.github.hummelhose.desksharing.infrastructure.persistence.repository.ReservationRepository;
-import io.github.hummelhose.desksharing.infrastructure.persistence.repository.ResourceRepository;
 import io.github.hummelhose.desksharing.infrastructure.persistence.repository.RoomRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
@@ -17,18 +14,12 @@ import java.util.Optional;
 public class RoomService {
 
     private final RoomRepository roomRepository;
-    private final ResourceRepository resourceRepository;
     private final OfficeRepository officeRepository;
-    private final ReservationRepository reservationRepository;
 
     public RoomService(RoomRepository roomRepository,
-                       ResourceRepository resourceRepository,
-                       OfficeRepository officeRepository,
-                       ReservationRepository reservationRepository) {
+                       OfficeRepository officeRepository) {
         this.roomRepository = roomRepository;
-        this.resourceRepository = resourceRepository;
         this.officeRepository = officeRepository;
-        this.reservationRepository = reservationRepository;
     }
 
     public List<Room> getAllRooms() {
@@ -56,7 +47,15 @@ public class RoomService {
                            boolean active,
                            Integer layoutWidth,
                            Integer layoutHeight) {
-        Room room = new Room(name, description, active, layoutWidth, layoutHeight);
+
+        Room room = new Room(
+                name,
+                description,
+                active,
+                layoutWidth,
+                layoutHeight
+        );
+
         return roomRepository.save(room);
     }
 
@@ -68,7 +67,9 @@ public class RoomService {
                                      Integer posY,
                                      Integer layoutWidth,
                                      Integer layoutHeight) {
-        Optional<Office> officeOptional = officeRepository.findById(officeId);
+
+        Optional<Office> officeOptional =
+                officeRepository.findById(officeId);
 
         if (officeOptional.isEmpty()) {
             return Optional.empty();
@@ -94,6 +95,7 @@ public class RoomService {
                                      boolean active,
                                      Integer layoutWidth,
                                      Integer layoutHeight) {
+
         return roomRepository.findById(id)
                 .map(existingRoom -> {
                     existingRoom.setName(name);
@@ -115,8 +117,12 @@ public class RoomService {
                                      Integer posY,
                                      Integer layoutWidth,
                                      Integer layoutHeight) {
-        Optional<Room> roomOptional = roomRepository.findById(id);
-        Optional<Office> officeOptional = officeRepository.findById(officeId);
+
+        Optional<Room> roomOptional =
+                roomRepository.findById(id);
+
+        Optional<Office> officeOptional =
+                officeRepository.findById(officeId);
 
         if (roomOptional.isEmpty() || officeOptional.isEmpty()) {
             return Optional.empty();
@@ -136,7 +142,10 @@ public class RoomService {
         return Optional.of(roomRepository.save(existingRoom));
     }
 
-    public Optional<Room> updateRoomPosition(Long roomId, int posX, int posY) {
+    public Optional<Room> updateRoomPosition(Long roomId,
+                                             int posX,
+                                             int posY) {
+
         return roomRepository.findById(roomId)
                 .map(room -> {
                     room.setPosX(Math.max(posX, 0));
@@ -146,7 +155,10 @@ public class RoomService {
                 });
     }
 
-    public Optional<Room> updateRoomSize(Long roomId, int layoutWidth, int layoutHeight) {
+    public Optional<Room> updateRoomSize(Long roomId,
+                                         int layoutWidth,
+                                         int layoutHeight) {
+
         return roomRepository.findById(roomId)
                 .map(room -> {
                     room.setLayoutWidth(Math.max(layoutWidth, 100));
@@ -161,6 +173,7 @@ public class RoomService {
                                            int posY,
                                            int layoutWidth,
                                            int layoutHeight) {
+
         return roomRepository.findById(roomId)
                 .map(room -> {
                     room.setPosX(Math.max(posX, 0));
@@ -172,9 +185,14 @@ public class RoomService {
                 });
     }
 
-    public Optional<Room> assignRoomToOffice(Long roomId, Long officeId) {
-        Optional<Room> roomOptional = roomRepository.findById(roomId);
-        Optional<Office> officeOptional = officeRepository.findById(officeId);
+    public Optional<Room> assignRoomToOffice(Long roomId,
+                                             Long officeId) {
+
+        Optional<Room> roomOptional =
+                roomRepository.findById(roomId);
+
+        Optional<Office> officeOptional =
+                officeRepository.findById(officeId);
 
         if (roomOptional.isEmpty() || officeOptional.isEmpty()) {
             return Optional.empty();
@@ -196,22 +214,14 @@ public class RoomService {
 
     @Transactional
     public boolean deleteRoom(Long roomId) {
-        Optional<Room> roomOptional = roomRepository.findById(roomId);
+        Optional<Room> roomOptional =
+                roomRepository.findById(roomId);
 
         if (roomOptional.isEmpty()) {
             return false;
         }
 
-        List<Resource> resourcesInRoom = resourceRepository.findByRoomId(roomId);
-
-        for (Resource resource : resourcesInRoom) {
-            reservationRepository.findByResourceId(resource.getId())
-                    .forEach(reservationRepository::delete);
-
-            resourceRepository.delete(resource);
-        }
-
-        roomRepository.deleteById(roomId);
+        roomRepository.delete(roomOptional.get());
         return true;
     }
 }

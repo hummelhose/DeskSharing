@@ -1,12 +1,7 @@
 package io.github.hummelhose.desksharing.application.service;
 
 import io.github.hummelhose.desksharing.domain.model.Office;
-import io.github.hummelhose.desksharing.domain.model.Resource;
-import io.github.hummelhose.desksharing.domain.model.Room;
 import io.github.hummelhose.desksharing.infrastructure.persistence.repository.OfficeRepository;
-import io.github.hummelhose.desksharing.infrastructure.persistence.repository.ReservationRepository;
-import io.github.hummelhose.desksharing.infrastructure.persistence.repository.ResourceRepository;
-import io.github.hummelhose.desksharing.infrastructure.persistence.repository.RoomRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
@@ -17,18 +12,9 @@ import java.util.Optional;
 public class OfficeService {
 
     private final OfficeRepository officeRepository;
-    private final RoomRepository roomRepository;
-    private final ResourceRepository resourceRepository;
-    private final ReservationRepository reservationRepository;
 
-    public OfficeService(OfficeRepository officeRepository,
-                         RoomRepository roomRepository,
-                         ResourceRepository resourceRepository,
-                         ReservationRepository reservationRepository) {
+    public OfficeService(OfficeRepository officeRepository) {
         this.officeRepository = officeRepository;
-        this.roomRepository = roomRepository;
-        this.resourceRepository = resourceRepository;
-        this.reservationRepository = reservationRepository;
     }
 
     public List<Office> getAllOffices() {
@@ -48,6 +34,7 @@ public class OfficeService {
                                boolean active,
                                Integer layoutWidth,
                                Integer layoutHeight) {
+
         Office office = new Office(
                 name,
                 description,
@@ -65,6 +52,7 @@ public class OfficeService {
                                          boolean active,
                                          Integer layoutWidth,
                                          Integer layoutHeight) {
+
         return officeRepository.findById(id)
                 .map(existingOffice -> {
                     existingOffice.setName(name);
@@ -79,25 +67,11 @@ public class OfficeService {
 
     @Transactional
     public boolean deleteOffice(Long officeId) {
-        Optional<Office> officeOptional = officeRepository.findById(officeId);
+        Optional<Office> officeOptional =
+                officeRepository.findById(officeId);
 
         if (officeOptional.isEmpty()) {
             return false;
-        }
-
-        List<Room> roomsInOffice = roomRepository.findByOfficeId(officeId);
-
-        for (Room room : roomsInOffice) {
-            List<Resource> resourcesInRoom = resourceRepository.findByRoomId(room.getId());
-
-            for (Resource resource : resourcesInRoom) {
-                reservationRepository.findByResourceId(resource.getId())
-                        .forEach(reservationRepository::delete);
-
-                resourceRepository.delete(resource);
-            }
-
-            roomRepository.delete(room);
         }
 
         officeRepository.delete(officeOptional.get());

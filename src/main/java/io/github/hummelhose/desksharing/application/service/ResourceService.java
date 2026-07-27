@@ -3,9 +3,9 @@ package io.github.hummelhose.desksharing.application.service;
 import io.github.hummelhose.desksharing.domain.model.Resource;
 import io.github.hummelhose.desksharing.domain.model.ResourceType;
 import io.github.hummelhose.desksharing.domain.model.Room;
-import io.github.hummelhose.desksharing.infrastructure.persistence.repository.ReservationRepository;
 import io.github.hummelhose.desksharing.infrastructure.persistence.repository.ResourceRepository;
 import io.github.hummelhose.desksharing.infrastructure.persistence.repository.RoomRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -16,14 +16,11 @@ public class ResourceService {
 
     private final ResourceRepository resourceRepository;
     private final RoomRepository roomRepository;
-    private final ReservationRepository reservationRepository;
 
     public ResourceService(ResourceRepository resourceRepository,
-                           RoomRepository roomRepository,
-                           ReservationRepository reservationRepository) {
+                           RoomRepository roomRepository) {
         this.resourceRepository = resourceRepository;
         this.roomRepository = roomRepository;
-        this.reservationRepository = reservationRepository;
     }
 
     public List<Resource> getAllResources() {
@@ -54,6 +51,7 @@ public class ResourceService {
                                              boolean bookable,
                                              Integer posX,
                                              Integer posY) {
+
         return roomRepository.findById(roomId)
                 .map(room -> {
                     Resource resource = new Resource(
@@ -81,6 +79,7 @@ public class ResourceService {
                                              Integer posY,
                                              Integer width,
                                              Integer height) {
+
         return roomRepository.findById(roomId)
                 .map(room -> {
                     Resource resource = new Resource(
@@ -109,8 +108,12 @@ public class ResourceService {
                                              boolean bookable,
                                              Integer posX,
                                              Integer posY) {
-        Optional<Resource> resourceOptional = resourceRepository.findById(id);
-        Optional<Room> roomOptional = roomRepository.findById(roomId);
+
+        Optional<Resource> resourceOptional =
+                resourceRepository.findById(id);
+
+        Optional<Room> roomOptional =
+                roomRepository.findById(roomId);
 
         if (resourceOptional.isEmpty() || roomOptional.isEmpty()) {
             return Optional.empty();
@@ -136,7 +139,9 @@ public class ResourceService {
             existingResource.setHeight(74);
         }
 
-        return Optional.of(resourceRepository.save(existingResource));
+        return Optional.of(
+                resourceRepository.save(existingResource)
+        );
     }
 
     public Optional<Resource> updateResource(Long id,
@@ -150,8 +155,12 @@ public class ResourceService {
                                              Integer posY,
                                              Integer width,
                                              Integer height) {
-        Optional<Resource> resourceOptional = resourceRepository.findById(id);
-        Optional<Room> roomOptional = roomRepository.findById(roomId);
+
+        Optional<Resource> resourceOptional =
+                resourceRepository.findById(id);
+
+        Optional<Room> roomOptional =
+                roomRepository.findById(roomId);
 
         if (resourceOptional.isEmpty() || roomOptional.isEmpty()) {
             return Optional.empty();
@@ -171,10 +180,15 @@ public class ResourceService {
         existingResource.setWidth(Math.max(width, 60));
         existingResource.setHeight(Math.max(height, 40));
 
-        return Optional.of(resourceRepository.save(existingResource));
+        return Optional.of(
+                resourceRepository.save(existingResource)
+        );
     }
 
-    public Optional<Resource> updateResourcePosition(Long resourceId, int posX, int posY) {
+    public Optional<Resource> updateResourcePosition(Long resourceId,
+                                                     int posX,
+                                                     int posY) {
+
         return resourceRepository.findById(resourceId)
                 .map(resource -> {
                     resource.setPosX(Math.max(posX, 0));
@@ -192,7 +206,10 @@ public class ResourceService {
                 });
     }
 
-    public Optional<Resource> updateResourceSize(Long resourceId, int width, int height) {
+    public Optional<Resource> updateResourceSize(Long resourceId,
+                                                 int width,
+                                                 int height) {
+
         return resourceRepository.findById(resourceId)
                 .map(resource -> {
                     resource.setWidth(Math.max(width, 60));
@@ -207,6 +224,7 @@ public class ResourceService {
                                                    int posY,
                                                    int width,
                                                    int height) {
+
         return resourceRepository.findById(resourceId)
                 .map(resource -> {
                     resource.setPosX(Math.max(posX, 0));
@@ -218,15 +236,16 @@ public class ResourceService {
                 });
     }
 
+    @Transactional
     public boolean deleteResource(Long resourceId) {
-        if (resourceRepository.findById(resourceId).isEmpty()) {
+        Optional<Resource> resourceOptional =
+                resourceRepository.findById(resourceId);
+
+        if (resourceOptional.isEmpty()) {
             return false;
         }
 
-        reservationRepository.findByResourceId(resourceId)
-                .forEach(reservationRepository::delete);
-
-        resourceRepository.deleteById(resourceId);
+        resourceRepository.delete(resourceOptional.get());
         return true;
     }
 }
